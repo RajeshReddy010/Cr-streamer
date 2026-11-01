@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Cricket Stream Canvas</title>
+    <style>
+        body {
+            margin: 0;
+            width: 1920px;
+            height: 1080px;
+            background: linear-gradient(135deg, #0f172a, #1e1b4b);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 60px;
+            box-sizing: border-box;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px 40px;
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .match-title { font-size: 32px; font-weight: 700; color: #38bdf8; }
+        .score-box {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 40px 60px;
+            border-radius: 24px;
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .teams { font-size: 56px; font-weight: 800; }
+        .runs { font-size: 80px; font-weight: 900; color: #4ade80; }
+        .commentary-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px 40px;
+            border-radius: 16px;
+            border-left: 6px solid #38bdf8;
+            font-size: 28px;
+            line-height: 1.5;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="match-title" id="matchTitle">Live Cricket Broadcast</div>
+        <div id="status" style="font-size: 24px; color: #4ade80;">● LIVE STREAM</div>
+    </div>
+    <div class="score-box">
+        <div>
+            <div class="teams" id="teams">IND vs AUS</div>
+            <div style="font-size: 24px; color: #94a3b8;" id="overs">Overs: 0.0</div>
+        </div>
+        <div class="runs" id="score">0/0</div>
+    </div>
+    <div class="commentary-box" id="commentary">
+        Initializing AI commentary engine...
+    </div>
+
+    <script>
+        async function updateDisplay() {
+            try {
+                const res = await fetch('./obs_state.json?' + new Date().getTime());
+                const data = await res.json();
+                if (data.teams) document.getElementById('teams').innerText = data.teams;
+                if (data.score) document.getElementById('score').innerText = data.score;
+                if (data.overs) document.getElementById('overs').innerText = "Overs: " + data.overs;
+                if (data.commentary) document.getElementById('commentary').innerText = data.commentary;
+            } catch (e) {
+                console.log("Waiting for state file...");
+            }
+        }
+        setInterval(updateDisplay, 2000);
+    </script>
+</body>
+</html>
