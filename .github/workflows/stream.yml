@@ -3,12 +3,12 @@ name: Automated YouTube Live Stream
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *' # Auto-restarts every 5 hours to stay within GitHub job limits
+    - cron: '0 */5 * * *'
 
 jobs:
   run-stream:
     runs-on: ubuntu-latest
-    timeout-minutes: 350 # Runs safely under the 6-hour job limit
+    timeout-minutes: 350
 
     steps:
       - name: Checkout Repository
@@ -19,15 +19,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - - name: Install System Dependencies & FFmpeg
+      - name: Install System Dependencies & FFmpeg
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb chromium ffmpeg pulseaudio alsa-utils libasound2-dev
-      
+
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install google-genai edge-tts aiohttp pydantic
+          pip install google-genai edge-tts aiohttp pydantic beautifulsoup4 requests
 
       - name: Start Virtual Framebuffer & Audio Sink
         run: |
@@ -42,10 +42,10 @@ jobs:
           python3 -m http.server 8080 &
           echo "Local HTTP server running on port 8080."
 
-      - name: Launch Headless Chromium
+      - name: Launch Headless Chromium Browser
         run: |
           export DISPLAY=:99
-          chromium-browser --display=:99 \
+          chromium --display=:99 \
             --no-sandbox \
             --disable-gpu \
             --window-size=1920,1080 \
@@ -56,7 +56,6 @@ jobs:
       - name: Start AI Commentator Python Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          WORKER_API_URL: ${{ secrets.WORKER_API_URL }}
         run: |
           python3 ai_commentator.py &
 
@@ -65,10 +64,9 @@ jobs:
           STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
           export DISPLAY=:99
-          # Generates silent audio track merged with any audio outputs, streaming 1080p at 30fps to YouTube RTMP
           ffmpeg -f x11grab -video_size 1920x1080 -framerate 30 -i :99.0 \
             -f lavfi -i anullsrc=r=44100:cl=stereo \
             -c:v libx264 -preset ultrafast -b:v 3000k -maxrate 3000k -bufsize 6000k \
             -pix_fmt yuv420p -g 60 \
             -c:a aac -b:a 128k -ar 44100 \
-            -f flv rtv://a.rtmp.youtube.com/live2/$STREAM_KEY
+            -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
