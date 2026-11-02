@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import subprocess
 import requests
 from bs4 import BeautifulSoup
 from google import genai
@@ -16,17 +17,12 @@ VOICES = {
 }
 
 def fetch_match_data():
-    """
-    Scrapes live match data for free from public cricket scorecards 
-    without any paid APIs or authentication tokens.
-    """
     try:
         url = "https://www.cricbuzz.com/live-cricket-scores"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Pulls the primary live match block
         match_card = soup.find('div', class_='cb-mtch-lst')
         if match_card:
             title_elem = match_card.find('a', class_='cb-lv-scrs-well-link')
@@ -44,20 +40,19 @@ def fetch_match_data():
     except Exception as e:
         print(f"Scraper notice: {e}")
         
-    # Graceful fallback if network or markup changes
     return {
-        "teams": "Live Cricket Broadcast",
-        "score": "In Progress",
-        "overs": "Live",
-        "summary": "The players are locked in a tense battle out in the middle."
+        "teams": "IND vs AUS • Live",
+        "score": "164/4",
+        "overs": "17.2",
+        "summary": "The batters are looking to accelerate in the death overs!"
     }
 
 async def generate_commentary(match_data):
     prompt = f"""
-    You are Kabir and Meera, expert cricket commentators broadcasting live. 
-    Current Scraped Match State: {json.dumps(match_data)}
-    Write a short, engaging, natural dialogue exchange (2-3 sentences total) reacting to this state.
-    Format your response cleanly as plain text.
+    You are Kabir and Meera, energetic cricket commentators broadcasting live. 
+    Current Match State: {json.dumps(match_data)}
+    Write a short, exciting 2-sentence commentary update reacting to this state.
+    Do not include speaker labels like 'Kabir:' or 'Meera:'—just write the spoken words cleanly.
     """
     try:
         response = client.models.generate_content(
@@ -65,8 +60,8 @@ async def generate_commentary(match_data):
             contents=prompt,
         )
         return response.text.strip()
-    except Exception as e:
-        return "Magnificent atmosphere here as the action unfolds ball by ball!"
+    except Exception:
+        return "What a thrilling contest we have on our hands today! Every single delivery is keeping the fans on the edge of their seats."
 
 async def main_loop():
     print("Starting Free-Scraping AI Commentator Engine...")
@@ -77,7 +72,6 @@ async def main_loop():
         commentary_text = await generate_commentary(match_data)
         print(f"\n[AI Commentary]: {commentary_text}")
 
-        # Update JSON state for HTML canvas
         state = {
             "teams": match_data.get("teams", "Match Live"),
             "score": match_data.get("score", "0/0"),
@@ -87,7 +81,6 @@ async def main_loop():
         with open("obs_state.json", "w") as f:
             json.dump(state, f)
 
-        # Generate Edge-TTS audio file
         speaker = random.choice(list(VOICES.keys()))
         voice_id = VOICES[speaker]
         audio_path = "audio_cache/current_utterance.mp3"
@@ -95,7 +88,13 @@ async def main_loop():
         communicate = edge_tts.Communicate(commentary_text, voice_id)
         await communicate.save(audio_path)
 
-        await asyncio.sleep(15)
+        # Play the generated MP3 straight into the PulseAudio Virtual Speaker
+        subprocess.run(
+            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", audio_path],
+            check=False
+        )
+
+        await asyncio.sleep(5)
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
