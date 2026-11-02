@@ -82,6 +82,6 @@ jobs:
             -thread_queue_size 1024 -f pulse -i virtual_speaker.monitor \
             -c:v libx264 -preset ultrafast -tune zerolatency \
             -b:v 3000k -minrate 3000k -maxrate 3000k -bufsize 6000k \
-            -pix_fmt yuv420p -r 24 -g 48 -keyint_min 48 -sc_threshold 0 \
+            -pix_fmt yuv420p -r 24 -g 24 -keyint_min 48 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 \
             -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
