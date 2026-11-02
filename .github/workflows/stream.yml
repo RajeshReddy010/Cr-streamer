@@ -19,11 +19,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Google Chrome & FFmpeg
+      - name: Install Google Chrome, FFmpeg & PulseAudio
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb ffmpeg pulseaudio pulseaudio-utils alsa-utils libasound2-dev wget
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           rm google-chrome-stable_current_amd64.deb
 
@@ -32,23 +32,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install google-genai edge-tts aiohttp pydantic beautifulsoup4 requests
 
-      - name: Start Virtual Framebuffer & Virtual Audio Speaker
+      - name: Run Display, Audio, AI Commentator & YouTube Stream
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
+          # 1. Start Virtual Display
           Xvfb :99 -screen 0 1920x1080x24 &
           export DISPLAY=:99
+          sleep 2
+
+          # 2. Start PulseAudio & Virtual Speaker in the SAME session
           pulseaudio -D --exit-idle-time=-1
           pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description="Virtual_Speaker"
           pactl set-default-sink virtual_speaker
-          echo "Virtual display and audio speaker initialized."
+          export PULSE_SINK=virtual_speaker
 
-      - name: Start Local Web Server & Initial State
-        run: |
-          echo '{"teams": "IND vs AUS", "score": "164/4", "overs": "17.2", "commentary": "Welcome to our live cricket broadcast!"}' > obs_state.json
+          # 3. Start Local Web Server
+          echo '{"teams": "Live Match", "score": "Loading Live Score...", "overs": "Live Action", "commentary": "Connecting live voiceover commentary..."}' > obs_state.json
           python3 -m http.server 8080 &
+          sleep 2
 
-      - name: Launch Headless Google Chrome (Bypassing First-Run Popup)
-        run: |
-          export DISPLAY=:99
+          # 4. Launch Headless Chrome
           google-chrome --display=:99 \
             --no-sandbox \
             --disable-gpu \
@@ -62,18 +67,11 @@ jobs:
             --app=http://localhost:8080/scoreboard.html &
           sleep 4
 
-      - name: Start AI Commentator Python Script
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          export DISPLAY=:99
-          python3 ai_commentator.py &
+          # 5. Start AI Commentator Loop (Unbuffered so you see logs in GitHub!)
+          python3 -u ai_commentator.py &
+          sleep 5
 
-      - name: Launch FFmpeg Headless Stream to YouTube
-        env:
-          STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
-        run: |
-          export DISPLAY=:99
+          # 6. Stream Video + Virtual Speaker Audio to YouTube
           ffmpeg -f x11grab -video_size 1920x1080 -framerate 30 -i :99.0 \
             -f pulse -i virtual_speaker.monitor \
             -c:v libx264 -preset veryfast -b:v 4500k -minrate 4500k -maxrate 4500k -bufsize 9000k \
