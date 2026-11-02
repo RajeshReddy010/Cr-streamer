@@ -31,41 +31,39 @@
         .match-title { font-size: 32px; font-weight: 700; color: #38bdf8; }
         .score-box {
             display: flex;
-            gap: 40px;
-            align-items: center;
-            background: rgba(15, 23, 42, 0.8);
-            padding: 40px 60px;
+            flex-direction: column;
+            gap: 20px;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 50px 60px;
             border-radius: 24px;
             border: 2px solid rgba(56, 189, 248, 0.3);
             box-shadow: 0 20px 40px rgba(0,0,0,0.5);
         }
-        .teams { font-size: 56px; font-weight: 800; }
-        .runs { font-size: 80px; font-weight: 900; color: #4ade80; }
+        .teams { font-size: 38px; font-weight: 700; color: #94a3b8; }
+        .runs { font-size: 64px; font-weight: 900; color: #4ade80; line-height: 1.2; }
         .commentary-box {
-            background: rgba(0, 0, 0, 0.6);
-            padding: 30px 40px;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 35px 45px;
             border-radius: 16px;
-            border-left: 6px solid #38bdf8;
-            font-size: 28px;
+            border-left: 8px solid #38bdf8;
+            font-size: 32px;
             line-height: 1.5;
-            min-height: 100px;
+            min-height: 120px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="match-title" id="matchTitle">Live Cricket Broadcast</div>
-        <div id="status" style="font-size: 24px; color: #4ade80;">● LIVE STREAM</div>
+        <div class="match-title" id="matchTitle">CricRover • Live Cricket Broadcast</div>
+        <div id="status" style="font-size: 26px; font-weight: bold; color: #4ade80;">● LIVE STREAM</div>
     </div>
     <div class="score-box">
-        <div>
-            <div class="teams" id="teams">IND vs AUS</div>
-            <div style="font-size: 24px; color: #94a3b8;" id="overs">Overs: 0.0</div>
-        </div>
-        <div class="runs" id="score">0/0</div>
+        <div class="teams" id="overs">Live Feed Active</div>
+        <div class="runs" id="score">Fetching Live Match Score...</div>
     </div>
     <div class="commentary-box" id="commentary">
-        Initializing AI commentary engine...
+        Connecting to live AI commentary studio...
     </div>
 
     <script>
@@ -73,15 +71,15 @@
             try {
                 const res = await fetch('./obs_state.json?' + new Date().getTime());
                 const data = await res.json();
-                if (data.teams) document.getElementById('teams').innerText = data.teams;
                 if (data.score) document.getElementById('score').innerText = data.score;
-                if (data.overs) document.getElementById('overs').innerText = "Overs: " + data.overs;
+                if (data.overs) document.getElementById('overs').innerText = data.overs;
                 if (data.commentary) document.getElementById('commentary').innerText = data.commentary;
             } catch (e) {
                 console.log("Waiting for state file...");
             }
         }
         setInterval(updateDisplay, 2000);
+        updateDisplay();
     </script>
 </body>
 </html>
