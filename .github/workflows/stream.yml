@@ -23,7 +23,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb ffmpeg pulseaudio alsa-utils libasound2-dev wget
-          # Install official Google Chrome stable
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           rm google-chrome-stable_current_amd64.deb
@@ -73,4 +72,4 @@ jobs:
             -c:v libx264 -preset ultrafast -b:v 3000k -maxrate 3000k -bufsize 6000k \
             -pix_fmt yuv420p -g 60 \
             -c:a aac -b:a 128k -ar 44100 \
-            -f flv rtv://a.rtmp.youtube.com/live2/$STREAM_KEY
+            -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
