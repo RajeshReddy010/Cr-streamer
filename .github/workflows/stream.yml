@@ -22,7 +22,7 @@ jobs:
       - name: Install Google Chrome & FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb ffmpeg pulseaudio alsa-utils libasound2-dev wget
+          sudo apt-get install -y xvfb ffmpeg pulseaudio pulseaudio-utils alsa-utils libasound2-dev wget
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           rm google-chrome-stable_current_amd64.deb
@@ -32,34 +32,41 @@ jobs:
           python -m pip install --upgrade pip
           pip install google-genai edge-tts aiohttp pydantic beautifulsoup4 requests
 
-      - name: Start Virtual Framebuffer & Audio Sink
+      - name: Start Virtual Framebuffer & Virtual Audio Speaker
         run: |
           Xvfb :99 -screen 0 1920x1080x24 &
           export DISPLAY=:99
-          pulseaudio --start &
-          echo "Virtual display and audio initialized."
+          pulseaudio -D --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description="Virtual_Speaker"
+          pactl set-default-sink virtual_speaker
+          echo "Virtual display and audio speaker initialized."
 
       - name: Start Local Web Server & Initial State
         run: |
-          echo '{"teams": "IND vs AUS", "score": "0/0", "overs": "0.0", "commentary": "Stream starting..."}' > obs_state.json
+          echo '{"teams": "IND vs AUS", "score": "164/4", "overs": "17.2", "commentary": "Welcome to our live cricket broadcast!"}' > obs_state.json
           python3 -m http.server 8080 &
-          echo "Local HTTP server running on port 8080."
 
-      - name: Launch Headless Google Chrome
+      - name: Launch Headless Google Chrome (Bypassing First-Run Popup)
         run: |
           export DISPLAY=:99
           google-chrome --display=:99 \
             --no-sandbox \
             --disable-gpu \
+            --no-first-run \
+            --no-default-browser-check \
+            --disable-fre \
+            --disable-infobars \
+            --window-position=0,0 \
             --window-size=1920,1080 \
             --kiosk \
-            http://localhost:8080/scoreboard.html &
-          sleep 3
+            --app=http://localhost:8080/scoreboard.html &
+          sleep 4
 
       - name: Start AI Commentator Python Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
+          export DISPLAY=:99
           python3 ai_commentator.py &
 
       - name: Launch FFmpeg Headless Stream to YouTube
@@ -68,8 +75,8 @@ jobs:
         run: |
           export DISPLAY=:99
           ffmpeg -f x11grab -video_size 1920x1080 -framerate 30 -i :99.0 \
-            -f lavfi -i anullsrc=r=44100:cl=stereo \
-            -c:v libx264 -preset ultrafast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+            -f pulse -i virtual_speaker.monitor \
+            -c:v libx264 -preset veryfast -b:v 4500k -minrate 4500k -maxrate 4500k -bufsize 9000k \
             -pix_fmt yuv420p -g 60 \
             -c:a aac -b:a 128k -ar 44100 \
             -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
