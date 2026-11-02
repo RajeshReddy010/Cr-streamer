@@ -19,11 +19,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install System Dependencies & FFmpeg
+      - - name: Install System Dependencies & FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb chromium-browser ffmpeg pulseaudio alsa-utils libasound2-dev
-
+          sudo apt-get install -y xvfb chromium ffmpeg pulseaudio alsa-utils libasound2-dev
+      
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -42,7 +42,7 @@ jobs:
           python3 -m http.server 8080 &
           echo "Local HTTP server running on port 8080."
 
-      - name: Launch Headless Chromium Browser
+      - name: Launch Headless Chromium
         run: |
           export DISPLAY=:99
           chromium-browser --display=:99 \
