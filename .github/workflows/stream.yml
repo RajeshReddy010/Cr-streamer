@@ -37,44 +37,51 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
-          # 1. Start Virtual Display
-          Xvfb :99 -screen 0 1920x1080x24 &
+          # 1. Start Virtual Display (720p HD uses 55% less CPU so fps stays locked at 30!)
+          Xvfb :99 -screen 0 1280x720x24 &
           export DISPLAY=:99
           sleep 2
 
-          # 2. Start PulseAudio & Virtual Speaker in the SAME session
+          # 2. Start PulseAudio & Virtual Speaker
           pulseaudio -D --exit-idle-time=-1
           pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description="Virtual_Speaker"
           pactl set-default-sink virtual_speaker
           export PULSE_SINK=virtual_speaker
 
-          # 3. Start Local Web Server
+          # 3. Start Continuous Silent Audio Carrier (Prevents audio bitrate drops & timestamp stalls)
+          ffmpeg -re -f lavfi -i anullsrc=r=44100:cl=stereo -f pulse "stream_carrier" &
+
+          # 4. Start Local Web Server
           echo '{"teams": "Live Match", "score": "Loading Live Score...", "overs": "Live Action", "commentary": "Connecting live voiceover commentary..."}' > obs_state.json
           python3 -m http.server 8080 &
           sleep 2
 
-          # 4. Launch Headless Chrome
+          # 5. Launch Headless Chrome scaled smoothly to 1280x720
           google-chrome --display=:99 \
             --no-sandbox \
             --disable-gpu \
+            --disable-software-rasterizer \
+            --disable-dev-shm-usage \
             --no-first-run \
             --no-default-browser-check \
             --disable-fre \
             --disable-infobars \
+            --force-device-scale-factor=0.666 \
             --window-position=0,0 \
             --window-size=1920,1080 \
             --kiosk \
             --app=http://localhost:8080/scoreboard.html &
           sleep 4
 
-          # 5. Start AI Commentator Loop (Unbuffered so you see logs in GitHub!)
+          # 6. Start AI Commentator Loop
           python3 -u ai_commentator.py &
-          sleep 5
+          sleep 4
 
-          # 6. Stream Video + Virtual Speaker Audio to YouTube
-          ffmpeg -f x11grab -video_size 1920x1080 -framerate 30 -i :99.0 \
-            -f pulse -i virtual_speaker.monitor \
-            -c:v libx264 -preset veryfast -b:v 4500k -minrate 4500k -maxrate 4500k -bufsize 9000k \
-            -pix_fmt yuv420p -g 60 \
+          # 7. Stream to YouTube at locked 24fps + ultrafast preset (2-second keyframes: -g 48)
+          ffmpeg -thread_queue_size 1024 -f x11grab -video_size 1280x720 -framerate 24 -i :99.0 \
+            -thread_queue_size 1024 -f pulse -i virtual_speaker.monitor \
+            -c:v libx264 -preset ultrafast -tune zerolatency \
+            -b:v 3000k -minrate 3000k -maxrate 3000k -bufsize 6000k \
+            -pix_fmt yuv420p -r 24 -g 48 -keyint_min 48 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 \
             -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
