@@ -48,8 +48,8 @@ jobs:
           pactl set-default-sink virtual_speaker
           export PULSE_SINK=virtual_speaker
 
-          # 3. Start Continuous Silent Audio Carrier (Prevents audio bitrate drops & timestamp stalls)
-          ffmpeg -re -f lavfi -i anullsrc=r=44100:cl=stereo -f pulse "stream_carrier" &
+          # 3. Start Continuous Low-Level Studio Ambience Carrier (Keeps YouTube audio bitrate locked at 128 Kbps!)
+          ffmpeg -re -f lavfi -i "anoisesrc=c=pink:r=44100:a=0.002" -f pulse "stream_carrier" &
 
           # 4. Start Local Web Server
           echo '{"teams": "Live Match", "score": "Loading Live Score...", "overs": "Live Action", "commentary": "Connecting live voiceover commentary..."}' > obs_state.json
