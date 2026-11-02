@@ -19,10 +19,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install System Dependencies & FFmpeg
+      - name: Install Google Chrome & FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb chromium ffmpeg pulseaudio alsa-utils libasound2-dev
+          sudo apt-get install -y xvfb ffmpeg pulseaudio alsa-utils libasound2-dev wget
+          # Install official Google Chrome stable
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
+          rm google-chrome-stable_current_amd64.deb
 
       - name: Install Python Dependencies
         run: |
@@ -42,10 +46,10 @@ jobs:
           python3 -m http.server 8080 &
           echo "Local HTTP server running on port 8080."
 
-      - name: Launch Headless Chromium Browser
+      - name: Launch Headless Google Chrome
         run: |
           export DISPLAY=:99
-          chromium --display=:99 \
+          google-chrome --display=:99 \
             --no-sandbox \
             --disable-gpu \
             --window-size=1920,1080 \
@@ -69,4 +73,4 @@ jobs:
             -c:v libx264 -preset ultrafast -b:v 3000k -maxrate 3000k -bufsize 6000k \
             -pix_fmt yuv420p -g 60 \
             -c:a aac -b:a 128k -ar 44100 \
-            -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
+            -f flv rtv://a.rtmp.youtube.com/live2/$STREAM_KEY
