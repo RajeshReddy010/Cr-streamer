@@ -36,24 +36,14 @@ jobs:
         run: |
           mkdir -p audio_assets
           wget -q -O audio_assets/crowd1.ogg "https://actions.google.com/sounds/v1/crowds/battle_crowd_celebration.ogg" || true
-          wget -q -O audio_assets/crowd2.ogg "https://actions.google.com/sounds/v1/crowds/team_cheer.ogg" || true
+          ffmpeg -y -stream_loop -1 -i audio_assets/crowd1.ogg -f lavfi -i "anoisesrc=c=brown:r=44100:a=0.05" -filter_complex "[0:a]volume=0.4[c];[1:a]volume=0.6[n];[c][n]amix=inputs=2:duration=shortest" -t 45 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3 || ffmpeg -y -f lavfi -i "anoisesrc=c=pink:r=44100:a=0.08" -t 45 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
 
-          if [ -s audio_assets/crowd1.ogg ]; then
-            ffmpeg -y -stream_loop -1 -i audio_assets/crowd1.ogg \
-              -f lavfi -i "anoisesrc=c=brown:r=44100:a=0.05,lowpass=f=420,highpass=f=80" \
-              -filter_complex "[0:a]volume=0.40[c];[1:a]volume=0.60[n];[c][n]amix=inputs=2:duration=shortest" \
-              -t 45 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
-          else
-            ffmpeg -y -f lavfi -i "anoisesrc=c=pink:r=44100:a=0.08,bandpass=f=350:width_type=h:w=250,tremolo=f=0.4:d=0.35" \
-              -t 45 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
-          fi
-
-      - name: Run Display, Live Scraper & Synchronized YouTube Stream
+      - name: Run Display, Live Scraper & 1080p Stream
         env:
           STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
-          # 1. Start Virtual Display (1280x720 HD)
-          Xvfb :99 -screen 0 1280x720x24 &
+          # 1. Start Virtual Display at Crystal Clear Native 1920x1080
+          Xvfb :99 -screen 0 1920x1080x24 &
           export DISPLAY=:99
           sleep 2
 
@@ -61,11 +51,11 @@ jobs:
           python3 -m http.server 8080 &
           sleep 2
 
-          # 3. Start Live Cricket Scraper First so obs_state.json is ready
+          # 3. Start Live Cricket Scraper
           python3 -u ai_commentator.py &
           sleep 4
 
-          # 4. Launch Headless Chrome scaled cleanly to 1280x720
+          # 4. Launch Headless Chrome at 1920x1080 (Zero Blur)
           google-chrome --display=:99 \
             --no-sandbox \
             --disable-gpu \
@@ -75,19 +65,18 @@ jobs:
             --no-default-browser-check \
             --disable-fre \
             --disable-infobars \
-            --force-device-scale-factor=0.6666 \
             --window-position=0,0 \
             --window-size=1920,1080 \
             --kiosk \
             --app=http://localhost:8080/scoreboard.html &
           sleep 4
 
-          # 5. Single Synchronized FFmpeg Stream (Video + Looped Stadium Crowd MP3)
-          ffmpeg -f x11grab -video_size 1280x720 -framerate 24 -draw_mouse 0 -i :99.0 \
+          # 5. Crisp 1080p FFmpeg Stream + Stadium Crowd BGM
+          ffmpeg -f x11grab -video_size 1920x1080 -framerate 30 -draw_mouse 0 -i :99.0 \
             -stream_loop -1 -i audio_assets/master_bg_loop.mp3 \
             -map 0:v:0 -map 1:a:0 \
             -c:v libx264 -preset ultrafast -tune zerolatency \
-            -b:v 3000k -minrate 3000k -maxrate 3000k -bufsize 6000k \
-            -pix_fmt yuv420p -r 24 -g 48 -keyint_min 48 -sc_threshold 0 \
+            -b:v 4500k -minrate 4500k -maxrate 4500k -bufsize 9000k \
+            -pix_fmt yuv420p -r 30 -g 30 -keyint_min 30 -sc_threshold 0 \
             -c:a aac -b:a 128k -ar 44100 -ac 2 \
             -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
