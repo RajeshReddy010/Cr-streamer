@@ -19,10 +19,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Google Chrome, FFmpeg & PulseAudio
+      - name: Install Google Chrome & FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb ffmpeg pulseaudio pulseaudio-utils alsa-utils libasound2-dev wget
+          sudo apt-get install -y xvfb ffmpeg wget
           wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -fy
           rm google-chrome-stable_current_amd64.deb
@@ -32,48 +32,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install beautifulsoup4 requests
 
-      - name: Download Free Royalty-Free Stadium Crowd & Background Loop
+      - name: Build Stadium Crowd Atmosphere MP3
         run: |
           mkdir -p audio_assets
-          # Download CC0 / Royalty-Free Stadium Crowd Ambience MP3 (or use your own crowd.mp3 in the repo)
-          wget -q -O audio_assets/stadium_crowd.mp3 "https://actions.google.com/sounds/v1/crowds/battle_crowd_celebration.ogg" || true
-          wget -q -O audio_assets/crowd_cheer.ogg "https://actions.google.com/sounds/v1/crowds/team_cheer.ogg" || true
+          wget -q -O audio_assets/crowd1.ogg "https://actions.google.com/sounds/v1/crowds/battle_crowd_celebration.ogg" || true
+          wget -q -O audio_assets/crowd2.ogg "https://actions.google.com/sounds/v1/crowds/team_cheer.ogg" || true
 
-          # Build a seamless 60-second stereo stadium atmosphere + sports beat master loop
-          if [ -s audio_assets/stadium_crowd.mp3 ]; then
-            ffmpeg -y -stream_loop -1 -i audio_assets/stadium_crowd.mp3 \
-              -f lavfi -i "anoisesrc=c=brown:r=44100:a=0.04,lowpass=f=450,highpass=f=90" \
-              -filter_complex "[0:a]volume=0.35[crowd];[1:a]volume=0.6[roar];[crowd][roar]amix=inputs=2:duration=shortest" \
-              -t 60 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
+          if [ -s audio_assets/crowd1.ogg ]; then
+            ffmpeg -y -stream_loop -1 -i audio_assets/crowd1.ogg \
+              -f lavfi -i "anoisesrc=c=brown:r=44100:a=0.05,lowpass=f=420,highpass=f=80" \
+              -filter_complex "[0:a]volume=0.40[c];[1:a]volume=0.60[n];[c][n]amix=inputs=2:duration=shortest" \
+              -t 45 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
           else
-            # Fallback synthesized stadium murmur if download fails
             ffmpeg -y -f lavfi -i "anoisesrc=c=pink:r=44100:a=0.08,bandpass=f=350:width_type=h:w=250,tremolo=f=0.4:d=0.35" \
-              -t 60 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
+              -t 45 -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k audio_assets/master_bg_loop.mp3
           fi
 
-      - name: Run Display, Stadium Crowd Audio & YouTube Stream
+      - name: Run Display, Live Scraper & Synchronized YouTube Stream
         env:
           STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
-          # 1. Start Virtual Display (720p HD for locked 24fps)
+          # 1. Start Virtual Display (1280x720 HD)
           Xvfb :99 -screen 0 1280x720x24 &
           export DISPLAY=:99
           sleep 2
 
-          # 2. Start PulseAudio & Virtual Speaker
-          pulseaudio -D --exit-idle-time=-1
-          pactl load-module module-null-sink sink_name=virtual_speaker sink_properties=device.description="Virtual_Speaker"
-          pactl set-default-sink virtual_speaker
-          export PULSE_SINK=virtual_speaker
-
-          # 3. Play Continuous Infinite Stadium Crowd & Background Loop into Virtual Speaker
-          ffmpeg -re -stream_loop -1 -i audio_assets/master_bg_loop.mp3 -f pulse "stadium_bgm" &
-
-          # 4. Start Local Web Server
+          # 2. Start Local Web Server
           python3 -m http.server 8080 &
           sleep 2
 
-          # 5. Launch Headless Chrome scaled smoothly to 1280x720
+          # 3. Start Live Cricket Scraper First so obs_state.json is ready
+          python3 -u ai_commentator.py &
+          sleep 4
+
+          # 4. Launch Headless Chrome scaled cleanly to 1280x720
           google-chrome --display=:99 \
             --no-sandbox \
             --disable-gpu \
@@ -83,22 +75,19 @@ jobs:
             --no-default-browser-check \
             --disable-fre \
             --disable-infobars \
-            --force-device-scale-factor=0.666 \
+            --force-device-scale-factor=0.6666 \
             --window-position=0,0 \
             --window-size=1920,1080 \
             --kiosk \
             --app=http://localhost:8080/scoreboard.html &
           sleep 4
 
-          # 6. Start Live Scoreboard Scraper (With Boundary/Wicket Crowd Cheer Triggers)
-          python3 -u ai_commentator.py &
-          sleep 3
-
-          # 7. Stream Video + Continuous Stadium Audio to YouTube
-          ffmpeg -thread_queue_size 1024 -f x11grab -video_size 1280x720 -framerate 24 -i :99.0 \
-            -thread_queue_size 1024 -f pulse -i virtual_speaker.monitor \
+          # 5. Single Synchronized FFmpeg Stream (Video + Looped Stadium Crowd MP3)
+          ffmpeg -f x11grab -video_size 1280x720 -framerate 24 -draw_mouse 0 -i :99.0 \
+            -stream_loop -1 -i audio_assets/master_bg_loop.mp3 \
+            -map 0:v:0 -map 1:a:0 \
             -c:v libx264 -preset ultrafast -tune zerolatency \
             -b:v 3000k -minrate 3000k -maxrate 3000k -bufsize 6000k \
-            -pix_fmt yuv420p -r 24 -g 24 -keyint_min 24 -sc_threshold 0 \
-            -c:a aac -b:a 128k -ar 44100 \
+            -pix_fmt yuv420p -r 24 -g 48 -keyint_min 48 -sc_threshold 0 \
+            -c:a aac -b:a 128k -ar 44100 -ac 2 \
             -f flv rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY
